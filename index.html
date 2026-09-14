@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>門診醫師表格製作</title>
+<!-- max-total-clinics-v42 -->
 <!-- clinic-lock-v1: suffix 診 locked; numeric prefix editable only -->
 <style>
   :root{
@@ -68,6 +69,102 @@
   .swatch{display:flex;align-items:center;gap:8px}
   .swatch i{width:28px;height:18px;border:1px solid #222;display:inline-block}
   .actions{display:grid;gap:10px;margin-top:18px}
+
+  .import-box{
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:12px;
+  }
+  .import-box input[type="file"]{
+    width:100%;
+    font-size:13px;
+  }
+  .import-preview{
+    width:100%;
+    max-height:150px;
+    object-fit:contain;
+    display:none;
+    margin-top:10px;
+    border:1px solid #ddd;
+    background:#fafafa;
+  }
+  .import-actions{
+    display:grid;
+    gap:8px;
+    margin-top:10px;
+  }
+  .import-status{
+    margin-top:9px;
+    min-height:18px;
+    font-size:12px;
+    line-height:1.5;
+    color:#555;
+  }
+  .import-status.error{color:#b42318}
+  .import-status.ok{color:#16794b}
+
+  .excel-import-box{
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:12px;
+  }
+  .excel-import-box input[type="file"],
+  .excel-import-box select{
+    width:100%;
+    font-size:13px;
+  }
+  .excel-sheet-row{
+    display:grid;
+    grid-template-columns:72px 1fr;
+    gap:8px;
+    align-items:center;
+    margin-top:10px;
+  }
+  .excel-sheet-row label{
+    font-size:13px;
+    color:#555;
+  }
+  .excel-import-actions{
+    display:grid;
+    gap:8px;
+    margin-top:10px;
+  }
+  .excel-import-status{
+    margin-top:9px;
+    min-height:18px;
+    font-size:12px;
+    line-height:1.5;
+    color:#555;
+  }
+  .excel-import-status.error{color:#b42318}
+  .excel-import-status.ok{color:#16794b}
+
+  .doc-import-box{
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:12px;
+  }
+  .doc-import-box input[type="file"]{
+    width:100%;
+    font-size:13px;
+  }
+  .doc-import-actions{
+    display:grid;
+    gap:8px;
+    margin-top:10px;
+  }
+  .doc-import-status{
+    margin-top:9px;
+    min-height:18px;
+    font-size:12px;
+    line-height:1.5;
+    color:#555;
+  }
+  .doc-import-status.error{color:#b42318}
+  .doc-import-status.ok{color:#16794b}
   button{
     appearance:none;
     border:0;
@@ -322,6 +419,10 @@
     .app{grid-template-columns:280px minmax(0,1fr)}
   }
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -331,10 +432,53 @@
 
     <div class="group">
       <h2>診別格數</h2>
-      <div class="row"><label for="morningCount">早診</label><input id="morningCount" type="number" min="1" max="40" value="3"></div>
-      <div class="row"><label for="afternoonCount">午診</label><input id="afternoonCount" type="number" min="1" max="40" value="3"></div>
-      <div class="row"><label for="eveningCount">晚診</label><input id="eveningCount" type="number" min="1" max="40" value="3"></div>
-      <div id="sumBox" class="sum">三時段合計：9 / 40 格</div>
+      <div class="row"><label for="morningCount">早診</label><input id="morningCount" type="number" min="1" max="42" value="3"></div>
+      <div class="row"><label for="afternoonCount">午診</label><input id="afternoonCount" type="number" min="1" max="42" value="3"></div>
+      <div class="row"><label for="eveningCount">晚診</label><input id="eveningCount" type="number" min="1" max="42" value="3"></div>
+      <div id="sumBox" class="sum">三時段合計：9 / 42 格</div>
+    </div>
+
+
+    <div class="group">
+      <h2>從圖片匯入門診表</h2>
+      <div class="import-box">
+        <input id="tableImageInput" type="file" accept="image/png,image/jpeg,image/webp">
+        <img id="tableImagePreview" class="import-preview" alt="上傳的門診表預覽">
+        <div class="import-actions">
+          <button type="button" class="secondary" id="importImageBtn">辨識並匯入診別／醫師姓名</button>
+        </div>
+        <div id="importStatus" class="import-status">已啟用雙階段加強辨識：先全表去格線／高對比 OCR，再針對漏字格逐格放大重試。辨識後仍建議快速人工校對。</div>
+      </div>
+    </div>
+
+
+    <div class="group">
+      <h2>從 Excel 匯入門診表</h2>
+      <div class="excel-import-box">
+        <input id="excelFileInput" type="file" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+        <div class="excel-sheet-row">
+          <label for="excelSheetSelect">工作表</label>
+          <select id="excelSheetSelect" disabled>
+            <option value="">請先選擇 Excel 檔</option>
+          </select>
+        </div>
+        <div class="excel-import-actions">
+          <button type="button" class="secondary" id="importExcelBtn">讀取並匯入診別／醫師姓名</button>
+        </div>
+        <div id="excelImportStatus" class="excel-import-status">支援 .xlsx／.xls／.xlsm。會直接讀取儲存格內容，不需 OCR，辨識通常比圖片更準。</div>
+      </div>
+    </div>
+
+
+    <div class="group">
+      <h2>從 Word／PDF 匯入門診表</h2>
+      <div class="doc-import-box">
+        <input id="documentFileInput" type="file" accept=".docx,.docm,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf">
+        <div class="doc-import-actions">
+          <button type="button" class="secondary" id="importDocumentBtn">讀取並匯入診別／醫師姓名</button>
+        </div>
+        <div id="documentImportStatus" class="doc-import-status">支援 Word（.docx／.docm）與 PDF。Word 會讀取表格內容；PDF 優先讀文字層，掃描型 PDF 會改用 OCR。</div>
+      </div>
     </div>
 
     <div class="group">
@@ -424,7 +568,7 @@ function makeRows(n){
     names:Array(7).fill('')
   }));
 }
-function clamp(v){ return Math.max(1,Math.min(40,Number(v)||1)); }
+function clamp(v){ return Math.max(1,Math.min(42,Number(v)||1)); }
 function totalCount(){
   return clamp(counts.morning.value)+clamp(counts.afternoon.value)+clamp(counts.evening.value);
 }
@@ -433,8 +577,8 @@ function getCellFontPt(){
   const minPt=8.5;
   const maxPt=12;
   if(total<=9) return maxPt;
-  if(total>=40) return minPt;
-  const ratio=(total-9)/(40-9);
+  if(total>=42) return minPt;
+  const ratio=(total-9)/(42-9);
   return +(maxPt-(maxPt-minPt)*ratio).toFixed(2);
 }
 function limitEditableText(el,maxChars){
@@ -467,10 +611,10 @@ function updateCounts(){
   }
   const sum=vals.morning+vals.afternoon+vals.evening;
   const box=document.getElementById('sumBox');
-  box.textContent=`三時段合計：${sum} / 40 格`;
-  box.classList.toggle('bad',sum>40);
-  document.getElementById('downloadBtn').disabled=sum>40;
-  if(sum<=40){
+  box.textContent=`三時段合計：${sum} / 42 格`;
+  box.classList.toggle('bad',sum>42);
+  document.getElementById('downloadBtn').disabled=sum>42;
+  if(sum<=42){
     for(const s of sessions) resizeData(s.key,vals[s.key]);
     render();
   }
@@ -481,13 +625,1377 @@ Object.values(counts).forEach(el=>el.addEventListener('input',updateCounts));
 
 
 
+
+
+
+let documentImportFile=null;
+
+function setDocumentImportStatus(text,type=''){
+  const el=document.getElementById('documentImportStatus');
+  el.textContent=text;
+  el.className='doc-import-status' + (type ? ` ${type}` : '');
+}
+
+function applyDocumentImportedRows(rows,sourceLabel='文件'){
+  const grouped={morning:[],afternoon:[],evening:[]};
+
+  for(const row of rows){
+    if(!grouped[row.session]) continue;
+    grouped[row.session].push({
+      clinic:row.clinic ? `${row.clinic}診` : '診',
+      names:[...row.names]
+    });
+  }
+
+  const total=grouped.morning.length+grouped.afternoon.length+grouped.evening.length;
+  if(total>42){
+    throw new Error(`${sourceLabel} 共讀取到 ${total} 格，超過目前上限 42 格。`);
+  }
+
+  if(!grouped.morning.length || !grouped.afternoon.length || !grouped.evening.length){
+    throw new Error('早診／午診／晚診沒有全部讀取成功。請確認文件格式與參考門診表相近。');
+  }
+
+  data={
+    morning:grouped.morning,
+    afternoon:grouped.afternoon,
+    evening:grouped.evening
+  };
+
+  counts.morning.value=grouped.morning.length;
+  counts.afternoon.value=grouped.afternoon.length;
+  counts.evening.value=grouped.evening.length;
+
+  render();
+
+  const filled=rows.reduce((sum,row)=>sum+row.names.slice(0,6).filter(Boolean).length,0);
+  setDocumentImportStatus(
+    `${sourceLabel} 匯入完成：早診 ${grouped.morning.length} 格、午診 ${grouped.afternoon.length} 格、晚診 ${grouped.evening.length} 格；讀取到 ${filled} 筆醫師姓名。`,
+    'ok'
+  );
+}
+
+function parseMatrixSchedule(matrix){
+  if(!Array.isArray(matrix) || !matrix.length){
+    throw new Error('文件內沒有可讀取的表格資料。');
+  }
+
+  const header=findExcelHeader(matrix);
+  const map=header.map;
+  const rows=[];
+  let currentSession=null;
+
+  const weekdayCols=[map.mon,map.tue,map.wed,map.thu,map.fri,map.sat];
+
+  for(let r=header.row+1;r<matrix.length;r++){
+    const row=matrix[r] || [];
+
+    const timeText=map.time!==undefined ? row[map.time] : '';
+    const combinedLead=[timeText,row[0],row[1]].map(normalizeExcelText).join(' ');
+    const textSession=excelSessionFromText(combinedLead);
+    if(textSession) currentSession=textSession;
+
+    const clinicText=normalizeExcelCompact(row[map.clinic]);
+    const clinicMatch=clinicText.match(/\d{1,2}/);
+
+    const names=weekdayCols.map(c=>{
+      if(c===undefined) return '';
+      return sanitizeExcelDoctorName(row[c]);
+    });
+
+    const hasDoctor=names.some(Boolean);
+    const isClinicRow=Boolean(clinicMatch) || clinicText.includes('診');
+
+    if(!currentSession || (!isClinicRow && !hasDoctor)) continue;
+
+    rows.push({
+      session:currentSession,
+      clinic:clinicMatch ? clinicMatch[0] : '',
+      names:[...names,'']
+    });
+  }
+
+  if(!rows.length){
+    throw new Error('沒有找到可匯入的診別／醫師資料。');
+  }
+
+  return rows;
+}
+
+function htmlTableToMatrix(table){
+  const grid=[];
+
+  const ensureRow=r=>{
+    while(grid.length<=r) grid.push([]);
+    return grid[r];
+  };
+
+  [...table.rows].forEach((tr,r)=>{
+    const row=ensureRow(r);
+    let c=0;
+
+    [...tr.cells].forEach(cell=>{
+      while(row[c]!==undefined) c++;
+
+      const text=normalizeExcelText(cell.textContent || '');
+      const rs=Math.max(1,Number(cell.rowSpan)||1);
+      const cs=Math.max(1,Number(cell.colSpan)||1);
+
+      for(let rr=0;rr<rs;rr++){
+        const target=ensureRow(r+rr);
+        for(let cc=0;cc<cs;cc++){
+          const col=c+cc;
+          if(target[col]===undefined){
+            target[col]=(rr===0 && cc===0) ? text : '';
+          }
+        }
+      }
+      c+=cs;
+    });
+  });
+
+  const width=Math.max(0,...grid.map(r=>r.length));
+  return grid.map(r=>Array.from({length:width},(_,i)=>r[i] ?? ''));
+}
+
+function scoreWordTable(matrix){
+  if(!matrix?.length) return -1;
+  let score=0;
+  const firstRows=matrix.slice(0,10).flat().map(normalizeExcelCompact);
+  const joined=firstRows.join('|');
+
+  if(joined.includes('診別')) score+=10;
+  ['星期一','星期二','星期三','星期四','星期五','星期六','星期日'].forEach(x=>{
+    if(joined.includes(x)) score+=2;
+  });
+  if(joined.includes('早診') || joined.includes('午診') || joined.includes('晚診')) score+=3;
+  score+=Math.min(10,matrix.length/3);
+  return score;
+}
+
+async function parseWordSchedule(file){
+  if(!window.mammoth){
+    throw new Error('Word 讀取模組尚未載入，請確認網路連線後重新整理。');
+  }
+
+  const ext=(file.name.split('.').pop() || '').toLowerCase();
+  if(!['docx','docm'].includes(ext)){
+    throw new Error('目前 Word 直接讀取支援 .docx／.docm；舊版 .doc 請先另存為 .docx。');
+  }
+
+  const arrayBuffer=await file.arrayBuffer();
+  const result=await mammoth.convertToHtml({arrayBuffer});
+  const doc=new DOMParser().parseFromString(result.value || '','text/html');
+  const tables=[...doc.querySelectorAll('table')];
+
+  if(!tables.length){
+    // 沒有 table 時，嘗試把 tab 分隔的段落當作表格。
+    const lines=[...doc.querySelectorAll('p')]
+      .map(p=>normalizeExcelText(p.textContent))
+      .filter(Boolean);
+
+    const matrix=lines.map(line=>line.split(/\t+/).map(normalizeExcelText));
+    if(matrix.some(r=>r.length>=3)){
+      return parseMatrixSchedule(matrix);
+    }
+
+    throw new Error('Word 文件內找不到可讀取的表格。建議使用真正的 Word 表格，不要只用空格排版。');
+  }
+
+  const candidates=tables.map(table=>{
+    const matrix=htmlTableToMatrix(table);
+    return {matrix,score:scoreWordTable(matrix)};
+  }).sort((a,b)=>b.score-a.score);
+
+  return parseMatrixSchedule(candidates[0].matrix);
+}
+
+function groupPdfItemsIntoLines(items,viewport){
+  const normalized=(items || []).map(item=>{
+    const tx=pdfjsLib.Util.transform(viewport.transform,item.transform);
+    const x=tx[4];
+    const y=tx[5];
+    const width=Math.abs((item.width || 0)*viewport.scale);
+    return {
+      text:normalizeExcelText(item.str || ''),
+      x,
+      y,
+      width,
+      cx:x+width/2
+    };
+  }).filter(i=>i.text);
+
+  normalized.sort((a,b)=>{
+    if(Math.abs(b.y-a.y)>3) return b.y-a.y;
+    return a.x-b.x;
+  });
+
+  const lines=[];
+  for(const item of normalized){
+    let line=lines.find(l=>Math.abs(l.y-item.y)<=3.5);
+    if(!line){
+      line={y:item.y,items:[]};
+      lines.push(line);
+    }
+    line.items.push(item);
+  }
+
+  lines.forEach(line=>line.items.sort((a,b)=>a.x-b.x));
+  return lines.sort((a,b)=>b.y-a.y);
+}
+
+function findPdfHeader(lines){
+  let best=null;
+
+  for(let i=0;i<Math.min(lines.length,30);i++){
+    const line=lines[i];
+    const mapped=[];
+
+    for(const item of line.items){
+      const key=excelHeaderKey(item.text);
+      if(key) mapped.push({key,x:item.cx,item});
+    }
+
+    const keys=new Set(mapped.map(m=>m.key));
+    let score=keys.size;
+    if(keys.has('clinic')) score+=3;
+    const weekdays=['mon','tue','wed','thu','fri','sat','sun'].filter(k=>keys.has(k)).length;
+    if(weekdays>=5) score+=5;
+
+    if(!best || score>best.score){
+      best={lineIndex:i,line,mapped,score};
+    }
+  }
+
+  if(!best || best.score<5){
+    throw new Error('PDF 文字層中找不到完整門診表頭。');
+  }
+
+  return best;
+}
+
+function parsePdfTextSchedule(lines){
+  const header=findPdfHeader(lines);
+  const centers={};
+
+  header.mapped.forEach(m=>{
+    if(centers[m.key]===undefined) centers[m.key]=m.x;
+  });
+
+  // 若部分標頭因 PDF 拆字未成功辨識，依診別右側的固定星期欄等距補齊。
+  if(centers.clinic===undefined){
+    throw new Error('PDF 表頭找不到「診別」。');
+  }
+
+  const weekdayKeys=['mon','tue','wed','thu','fri','sat','sun'];
+  const knownWeekdays=weekdayKeys.filter(k=>centers[k]!==undefined);
+
+  if(knownWeekdays.length<4){
+    const xs=header.line.items.map(i=>i.cx).sort((a,b)=>a-b);
+    const after=xs.filter(x=>x>centers.clinic);
+    if(after.length>=6){
+      weekdayKeys.forEach((k,i)=>{
+        centers[k]=centers[k] ?? after[Math.min(i,after.length-1)];
+      });
+    }
+  }
+
+  const sessionMarkers=[];
+  lines.slice(header.lineIndex+1).forEach(line=>{
+    const joined=line.items.map(i=>normalizeExcelCompact(i.text)).join('');
+    const session=excelSessionFromText(joined);
+    if(session){
+      sessionMarkers.push({session,y:line.y});
+    }
+  });
+
+  // 去除同一時段重複偵測，只保留代表位置。
+  const sessionY={};
+  for(const s of sessionMarkers){
+    if(sessionY[s.session]===undefined) sessionY[s.session]=s.y;
+  }
+
+  const availableSessions=Object.entries(sessionY).map(([session,y])=>({session,y}));
+  if(availableSessions.length<3){
+    throw new Error('PDF 文字層無法定位完整早診／午診／晚診時段。');
+  }
+
+  const clinicX=centers.clinic;
+  const weekdayCenters=weekdayKeys.slice(0,6).map(k=>centers[k]);
+
+  const rows=[];
+
+  for(let li=header.lineIndex+1;li<lines.length;li++){
+    const line=lines[li];
+
+    // 每行依 x 位置分配到「診別」與星期一～六。
+    const values={clinic:'',names:Array(6).fill('')};
+
+    for(const item of line.items){
+      if(item.text.includes('休診')) continue;
+
+      const targets=[
+        {type:'clinic',index:-1,x:clinicX},
+        ...weekdayCenters.map((x,index)=>({type:'doctor',index,x}))
+      ].filter(t=>Number.isFinite(t.x));
+
+      if(!targets.length) continue;
+      const target=targets.reduce((best,t)=>Math.abs(item.cx-t.x)<Math.abs(item.cx-best.x)?t:best,targets[0]);
+
+      if(target.type==='clinic'){
+        if(Math.abs(item.cx-target.x)<80){
+          values.clinic+=item.text;
+        }
+      }else{
+        if(Math.abs(item.cx-target.x)<80){
+          values.names[target.index]+=item.text;
+        }
+      }
+    }
+
+    const clinicMatch=normalizeExcelCompact(values.clinic).match(/\d{1,2}/);
+    const names=values.names.map(sanitizeExcelDoctorName);
+    if(!clinicMatch && !names.some(Boolean)) continue;
+
+    // 以目前列 y 距離哪個時段標記最近來判斷時段，
+    // 適合 PDF 中合併儲存格文字位在區塊中央的情況。
+    // 以每列 y 與時段標記中心的距離判斷所屬時段。
+    let session=availableSessions[0].session;
+    let bestD=Infinity;
+    for(const s of availableSessions){
+      const d=Math.abs(line.y-s.y);
+      if(d<bestD){ bestD=d; session=s.session; }
+    }
+
+    rows.push({
+      session,
+      clinic:clinicMatch ? clinicMatch[0] : '',
+      names:[...names,'']
+    });
+  }
+
+  if(!rows.length){
+    throw new Error('PDF 文字層沒有解析到診別／醫師資料。');
+  }
+
+  return rows;
+}
+
+async function renderPdfPageToCanvas(page,scale=2.2){
+  const viewport=page.getViewport({scale});
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.ceil(viewport.width);
+  canvas.height=Math.ceil(viewport.height);
+  const ctx=canvas.getContext('2d',{alpha:false});
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  await page.render({canvasContext:ctx,viewport}).promise;
+  return canvas;
+}
+
+async function parsePdfSchedule(file){
+  if(!window.pdfjsLib){
+    throw new Error('PDF 讀取模組尚未載入，請確認網路連線後重新整理。');
+  }
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const buffer=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
+
+  let bestRows=null;
+  let bestCount=0;
+
+  // 先嘗試文字型 PDF；最多掃描前 5 頁。
+  for(let p=1;p<=Math.min(pdf.numPages,5);p++){
+    const page=await pdf.getPage(p);
+    const viewport=page.getViewport({scale:1});
+    const text=await page.getTextContent();
+    const lines=groupPdfItemsIntoLines(text.items,viewport);
+
+    try{
+      const rows=parsePdfTextSchedule(lines);
+      if(rows.length>bestCount){
+        bestRows=rows;
+        bestCount=rows.length;
+      }
+    }catch(_){}
+  }
+
+  if(bestRows && bestRows.length>=3){
+    return {rows:bestRows,mode:'文字層'};
+  }
+
+  // 掃描型 PDF 或文字層太差：將第一頁渲染成圖片後沿用現有 OCR 流程。
+  const firstPage=await pdf.getPage(1);
+  const canvas=await renderPdfPageToCanvas(firstPage,2.4);
+
+  if(!window.Tesseract){
+    throw new Error('這份 PDF 看起來是掃描檔，但 OCR 模組尚未載入。請確認網路連線後重試。');
+  }
+
+  const pixels=getImagePixels(canvas);
+  const xLines=detectVerticalGridLines(canvas,pixels);
+  const yLines=detectHorizontalGridLines(canvas,pixels,xLines);
+
+  if(xLines.length<9){
+    throw new Error('掃描型 PDF 的表格線辨識不足，請改用較清晰的 PDF 或轉成圖片後匯入。');
+  }
+
+  const enhancedCanvas=createEnhancedOcrCanvas(canvas,xLines,yLines);
+  let worker=null;
+
+  try{
+    setDocumentImportStatus('PDF 為掃描型文件，正在改用 OCR 辨識…');
+    worker=await Tesseract.createWorker('chi_tra+eng',1,{
+      logger:m=>{
+        if(m.status==='recognizing text' && Number.isFinite(m.progress)){
+          setDocumentImportStatus(`PDF OCR 辨識中… ${Math.round(m.progress*100)}%`);
+        }
+      }
+    });
+
+    await worker.setParameters({
+      tessedit_pageseg_mode:'6',
+      preserve_interword_spaces:'0',
+      user_defined_dpi:'300'
+    });
+
+    const result=await worker.recognize(enhancedCanvas);
+    let rows=buildImportedRows(result.data.words || [],xLines,yLines,pixels);
+
+    rows=await enhanceMissingCells(
+      worker,
+      canvas,
+      rows,
+      xLines,
+      (done,total)=>setDocumentImportStatus(`PDF 精準補字 ${done} / ${total}`)
+    );
+
+    return {rows,mode:'OCR'};
+  }finally{
+    if(worker){
+      try{ await worker.terminate(); }catch(_){}
+    }
+  }
+}
+
+document.getElementById('documentFileInput').addEventListener('change',e=>{
+  documentImportFile=e.target.files && e.target.files[0] ? e.target.files[0] : null;
+  if(documentImportFile){
+    setDocumentImportStatus(`已選擇「${documentImportFile.name}」，按「讀取並匯入」開始。`);
+  }else{
+    setDocumentImportStatus('請選擇 Word 或 PDF 檔。');
+  }
+});
+
+async function importScheduleFromDocument(){
+  if(!documentImportFile){
+    setDocumentImportStatus('請先選擇 Word 或 PDF 檔。','error');
+    return;
+  }
+
+  const button=document.getElementById('importDocumentBtn');
+  button.disabled=true;
+
+  try{
+    const ext=(documentImportFile.name.split('.').pop() || '').toLowerCase();
+
+    if(['docx','docm'].includes(ext)){
+      setDocumentImportStatus('正在讀取 Word 表格…');
+      const rows=await parseWordSchedule(documentImportFile);
+      applyDocumentImportedRows(rows,'Word');
+    }else if(ext==='pdf'){
+      setDocumentImportStatus('正在分析 PDF 文字層…');
+      const result=await parsePdfSchedule(documentImportFile);
+      applyDocumentImportedRows(result.rows,`PDF（${result.mode}）`);
+    }else if(ext==='doc'){
+      throw new Error('舊版 .doc 目前無法在瀏覽器直接解析，請先用 Word 另存為 .docx 再匯入。');
+    }else{
+      throw new Error('不支援此文件格式。請使用 .docx／.docm／.pdf。');
+    }
+  }catch(err){
+    console.error(err);
+    setDocumentImportStatus(`文件匯入失敗：${err.message || err}`,'error');
+  }finally{
+    button.disabled=false;
+  }
+}
+
+document.getElementById('importDocumentBtn').addEventListener('click',importScheduleFromDocument);
+
+
+let excelWorkbook=null;
+let excelFileName='';
+
+function setExcelImportStatus(text,type=''){
+  const el=document.getElementById('excelImportStatus');
+  el.textContent=text;
+  el.className='excel-import-status' + (type ? ` ${type}` : '');
+}
+
+function normalizeExcelText(value){
+  return String(value ?? '')
+    .replace(/\u3000/g,' ')
+    .replace(/[\r\n\t]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function normalizeExcelCompact(value){
+  return normalizeExcelText(value).replace(/\s+/g,'');
+}
+
+function excelSessionFromText(text){
+  const t=normalizeExcelCompact(text);
+  if(!t) return null;
+  if(t.includes('早診') || t.includes('上午診') || t.includes('08:30') || t.includes('0830')) return 'morning';
+  if(t.includes('午診') || t.includes('下午診') || t.includes('14:00') || t.includes('1400')) return 'afternoon';
+  if(t.includes('晚診') || t.includes('夜診') || t.includes('18:00') || t.includes('1800')) return 'evening';
+  return null;
+}
+
+function excelHeaderKey(text){
+  const t=normalizeExcelCompact(text)
+    .replace(/週/g,'星期')
+    .replace(/礼拜/g,'星期')
+    .replace(/禮拜/g,'星期');
+
+  if(t.includes('門診時間') || (t.includes('門診') && t.includes('時間'))) return 'time';
+  if(t.includes('診別') || t==='診') return 'clinic';
+  if(t.includes('星期一')) return 'mon';
+  if(t.includes('星期二')) return 'tue';
+  if(t.includes('星期三')) return 'wed';
+  if(t.includes('星期四')) return 'thu';
+  if(t.includes('星期五')) return 'fri';
+  if(t.includes('星期六')) return 'sat';
+  if(t.includes('星期日') || t.includes('星期天')) return 'sun';
+  return null;
+}
+
+function findExcelHeader(matrix){
+  let best={row:-1,score:-1,map:{}};
+  const limit=Math.min(matrix.length,30);
+
+  for(let r=0;r<limit;r++){
+    const row=matrix[r] || [];
+    const map={};
+    let score=0;
+
+    row.forEach((value,c)=>{
+      const key=excelHeaderKey(value);
+      if(key && map[key]===undefined){
+        map[key]=c;
+        score++;
+      }
+    });
+
+    // 診別 + 至少 3 個星期欄，即視為高可信表頭。
+    const weekdayCount=['mon','tue','wed','thu','fri','sat','sun'].filter(k=>map[k]!==undefined).length;
+    if(map.clinic!==undefined) score+=2;
+    if(weekdayCount>=5) score+=3;
+    if(map.time!==undefined) score+=1;
+
+    if(score>best.score){
+      best={row:r,score,map};
+    }
+  }
+
+  if(best.row<0 || best.map.clinic===undefined){
+    throw new Error('找不到「診別」表頭。請確認 Excel 內含「門診時間／診別／星期一～星期日」類似欄位。');
+  }
+
+  const weekdayCount=['mon','tue','wed','thu','fri','sat'].filter(k=>best.map[k]!==undefined).length;
+  if(weekdayCount<3){
+    // 參考格式固定九欄，若文字表頭辨識不足則用相對欄位補齊。
+    const clinic=best.map.clinic;
+    best.map.time=best.map.time ?? Math.max(0,clinic-1);
+    best.map.mon=best.map.mon ?? clinic+1;
+    best.map.tue=best.map.tue ?? clinic+2;
+    best.map.wed=best.map.wed ?? clinic+3;
+    best.map.thu=best.map.thu ?? clinic+4;
+    best.map.fri=best.map.fri ?? clinic+5;
+    best.map.sat=best.map.sat ?? clinic+6;
+    best.map.sun=best.map.sun ?? clinic+7;
+  }
+
+  return best;
+}
+
+function excelCellFillRgb(sheet,rowIndex,colIndex){
+  try{
+    const addr=XLSX.utils.encode_cell({r:rowIndex,c:colIndex});
+    const cell=sheet[addr];
+    const fill=cell?.s?.fill;
+    const color=fill?.fgColor?.rgb || fill?.patternColor?.rgb || '';
+    if(!color) return null;
+    const hex=String(color).replace(/^FF/i,'').slice(-6);
+    if(!/^[0-9A-Fa-f]{6}$/.test(hex)) return null;
+    return [parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16)];
+  }catch(_){
+    return null;
+  }
+}
+
+function excelSessionFromStyle(sheet,rowIndex,clinicCol){
+  const rgb=excelCellFillRgb(sheet,rowIndex,clinicCol);
+  if(!rgb) return null;
+  const palette={
+    morning:[252,223,180],
+    afternoon:[227,227,228],
+    evening:[213,234,215]
+  };
+  let best=null,bestD=Infinity;
+  for(const [key,target] of Object.entries(palette)){
+    const d=Math.hypot(rgb[0]-target[0],rgb[1]-target[1],rgb[2]-target[2]);
+    if(d<bestD){ best=key; bestD=d; }
+  }
+  return bestD<80 ? best : null;
+}
+
+function sanitizeExcelDoctorName(value){
+  const raw=normalizeExcelCompact(value)
+    .replace(/[|｜_\-—–·•:：;；,，.。/\\()[\]{}<>《》「」『』]/g,'');
+  if(!raw) return '';
+
+  const han=[...raw].filter(ch=>/[\u3400-\u9FFF\uF900-\uFAFF]/.test(ch)).join('');
+  const preferred=han || raw;
+  return [...preferred].slice(0,4).join('');
+}
+
+function parseExcelSchedule(sheet){
+  const matrix=XLSX.utils.sheet_to_json(sheet,{
+    header:1,
+    raw:false,
+    defval:'',
+    blankrows:true
+  });
+
+  if(!matrix.length){
+    throw new Error('這個工作表沒有可讀取的資料。');
+  }
+
+  const header=findExcelHeader(matrix);
+  const map=header.map;
+  const rows=[];
+  let currentSession=null;
+
+  const weekdayCols=[map.mon,map.tue,map.wed,map.thu,map.fri,map.sat];
+
+  for(let r=header.row+1;r<matrix.length;r++){
+    const row=matrix[r] || [];
+
+    // 合併儲存格通常只有第一列有「早診／午診／晚診」，後續列會是空白，
+    // 因此 session 需要向下延續。
+    const timeText=map.time!==undefined ? row[map.time] : '';
+    const combinedLead=[timeText,row[0],row[1]].map(normalizeExcelText).join(' ');
+    const textSession=excelSessionFromText(combinedLead);
+    if(textSession) currentSession=textSession;
+
+    if(!currentSession){
+      currentSession=excelSessionFromStyle(sheet,r,map.clinic);
+    }else{
+      // 若底色明確進入下一時段，允許樣式覆蓋上一個合併欄位狀態。
+      const styled=excelSessionFromStyle(sheet,r,map.clinic);
+      if(styled) currentSession=styled;
+    }
+
+    const clinicText=normalizeExcelCompact(row[map.clinic]);
+    const clinicMatch=clinicText.match(/\d{1,2}/);
+
+    const names=weekdayCols.map(c=>{
+      if(c===undefined) return '';
+      return sanitizeExcelDoctorName(row[c]);
+    });
+
+    const hasDoctor=names.some(Boolean);
+    const isClinicRow=Boolean(clinicMatch) || clinicText.includes('診');
+
+    // 避免把標題、註解或純空白列匯入。
+    if(!currentSession || (!isClinicRow && !hasDoctor)) continue;
+
+    // 若該列沒有診別數字但有醫師姓名，也保留為空白診別，方便人工補填。
+    rows.push({
+      session:currentSession,
+      clinic:clinicMatch ? clinicMatch[0] : '',
+      names:[...names,'']
+    });
+  }
+
+  if(!rows.length){
+    throw new Error('沒有找到可匯入的診別／醫師資料。請確認 Excel 格式與參考門診表相近。');
+  }
+
+  return rows;
+}
+
+function applyExcelImportedRows(rows){
+  const grouped={morning:[],afternoon:[],evening:[]};
+
+  for(const row of rows){
+    if(!grouped[row.session]) continue;
+    grouped[row.session].push({
+      clinic:row.clinic ? `${row.clinic}診` : '診',
+      names:[...row.names]
+    });
+  }
+
+  const total=grouped.morning.length+grouped.afternoon.length+grouped.evening.length;
+  if(total>42){
+    throw new Error(`Excel 共讀取到 ${total} 格，超過目前上限 42 格。`);
+  }
+
+  if(!grouped.morning.length || !grouped.afternoon.length || !grouped.evening.length){
+    throw new Error('早診／午診／晚診沒有全部讀取成功。請確認第一欄有時段名稱或 Excel 保留了原表格底色。');
+  }
+
+  data={
+    morning:grouped.morning,
+    afternoon:grouped.afternoon,
+    evening:grouped.evening
+  };
+
+  counts.morning.value=grouped.morning.length;
+  counts.afternoon.value=grouped.afternoon.length;
+  counts.evening.value=grouped.evening.length;
+
+  render();
+
+  const filled=rows.reduce((sum,row)=>sum+row.names.slice(0,6).filter(Boolean).length,0);
+  setExcelImportStatus(
+    `Excel 匯入完成：早診 ${grouped.morning.length} 格、午診 ${grouped.afternoon.length} 格、晚診 ${grouped.evening.length} 格；讀取到 ${filled} 筆醫師姓名。`,
+    'ok'
+  );
+}
+
+document.getElementById('excelFileInput').addEventListener('change',async e=>{
+  const file=e.target.files && e.target.files[0];
+  const select=document.getElementById('excelSheetSelect');
+
+  excelWorkbook=null;
+  excelFileName='';
+  select.innerHTML='<option value="">請先選擇 Excel 檔</option>';
+  select.disabled=true;
+
+  if(!file){
+    setExcelImportStatus('請選擇 Excel 檔。');
+    return;
+  }
+
+  if(!window.XLSX){
+    setExcelImportStatus('Excel 讀取模組尚未載入。請確認網路連線後重新整理頁面。','error');
+    return;
+  }
+
+  try{
+    setExcelImportStatus('正在讀取 Excel 檔案…');
+    const buffer=await file.arrayBuffer();
+    excelWorkbook=XLSX.read(buffer,{
+      type:'array',
+      cellStyles:true,
+      cellDates:false,
+      raw:false
+    });
+    excelFileName=file.name;
+
+    if(!excelWorkbook.SheetNames?.length){
+      throw new Error('Excel 內沒有工作表。');
+    }
+
+    select.innerHTML='';
+    excelWorkbook.SheetNames.forEach((name,index)=>{
+      const option=document.createElement('option');
+      option.value=name;
+      option.textContent=name;
+      if(index===0) option.selected=true;
+      select.appendChild(option);
+    });
+    select.disabled=false;
+
+    setExcelImportStatus(`已讀取「${file.name}」，共 ${excelWorkbook.SheetNames.length} 個工作表。請選擇工作表後按「讀取並匯入」。`,'ok');
+  }catch(err){
+    console.error(err);
+    setExcelImportStatus(`Excel 讀取失敗：${err.message || err}`,'error');
+  }
+});
+
+async function importScheduleFromExcel(){
+  if(!excelWorkbook){
+    setExcelImportStatus('請先選擇 Excel 檔。','error');
+    return;
+  }
+
+  const sheetName=document.getElementById('excelSheetSelect').value;
+  if(!sheetName || !excelWorkbook.Sheets[sheetName]){
+    setExcelImportStatus('請選擇要讀取的工作表。','error');
+    return;
+  }
+
+  const button=document.getElementById('importExcelBtn');
+  button.disabled=true;
+
+  try{
+    setExcelImportStatus(`正在讀取工作表「${sheetName}」…`);
+    const rows=parseExcelSchedule(excelWorkbook.Sheets[sheetName]);
+    applyExcelImportedRows(rows);
+  }catch(err){
+    console.error(err);
+    setExcelImportStatus(`Excel 匯入失敗：${err.message || err}`,'error');
+  }finally{
+    button.disabled=false;
+  }
+}
+
+document.getElementById('importExcelBtn').addEventListener('click',importScheduleFromExcel);
+
+
+let importedTableImage=null;
+
+document.getElementById('tableImageInput').addEventListener('change',e=>{
+  const file=e.target.files && e.target.files[0];
+  const preview=document.getElementById('tableImagePreview');
+  const status=document.getElementById('importStatus');
+
+  importedTableImage=null;
+  preview.style.display='none';
+  preview.removeAttribute('src');
+  status.className='import-status';
+
+  if(!file){
+    status.textContent='請選擇門診表圖片。';
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    importedTableImage=reader.result;
+    preview.src=reader.result;
+    preview.style.display='block';
+    status.textContent='圖片已載入。按「辨識並匯入」開始辨識。';
+  };
+  reader.readAsDataURL(file);
+});
+
+function setImportStatus(text,type=''){
+  const el=document.getElementById('importStatus');
+  el.textContent=text;
+  el.className='import-status' + (type ? ` ${type}` : '');
+}
+
+function loadImageElement(src){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('圖片讀取失敗'));
+    img.src=src;
+  });
+}
+
+function clusterPositions(values,maxGap=4){
+  if(!values.length) return [];
+  const groups=[];
+  let group=[values[0]];
+
+  for(let i=1;i<values.length;i++){
+    if(values[i]-values[i-1] <= maxGap){
+      group.push(values[i]);
+    }else{
+      groups.push(group);
+      group=[values[i]];
+    }
+  }
+  groups.push(group);
+  return groups.map(g=>Math.round(g.reduce((a,b)=>a+b,0)/g.length));
+}
+
+function getImagePixels(canvas){
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  return ctx.getImageData(0,0,canvas.width,canvas.height);
+}
+
+function isDarkPixel(data,index){
+  const r=data[index], g=data[index+1], b=data[index+2], a=data[index+3];
+  if(a<80) return false;
+  const lum=0.2126*r+0.7152*g+0.0722*b;
+  return lum<105;
+}
+
+function detectVerticalGridLines(canvas,pixels){
+  const {width:w,height:h}=canvas;
+  const data=pixels.data;
+  const y0=Math.floor(h*0.06);
+  const y1=Math.floor(h*0.96);
+  const candidates=[];
+
+  for(let x=0;x<w;x++){
+    let dark=0, total=0;
+    for(let y=y0;y<y1;y+=2){
+      const idx=(y*w+x)*4;
+      if(isDarkPixel(data,idx)) dark++;
+      total++;
+    }
+    if(total && dark/total>0.34) candidates.push(x);
+  }
+
+  let lines=clusterPositions(candidates,5);
+
+  // 表格應有 10 條直向邊界。若偵測過多，保留間距較規則且橫跨主要畫面的線。
+  if(lines.length>10){
+    const minX=Math.min(...lines), maxX=Math.max(...lines);
+    const ideal=(maxX-minX)/9;
+    const chosen=[minX];
+    let last=minX;
+    for(let i=1;i<9;i++){
+      const target=minX+ideal*i;
+      const nearest=lines.reduce((best,x)=>Math.abs(x-target)<Math.abs(best-target)?x:best,lines[0]);
+      if(nearest>last) chosen.push(nearest);
+      last=nearest;
+    }
+    chosen.push(maxX);
+    lines=[...new Set(chosen)].sort((a,b)=>a-b);
+  }
+
+  return lines;
+}
+
+function detectHorizontalGridLines(canvas,pixels,xLines){
+  const {width:w,height:h}=canvas;
+  const data=pixels.data;
+  const x0=xLines && xLines.length>=3 ? xLines[1] : Math.floor(w*0.12);
+  const x1=xLines && xLines.length>=3 ? xLines[Math.min(8,xLines.length-2)] : Math.floor(w*0.90);
+  const candidates=[];
+
+  for(let y=0;y<h;y++){
+    let dark=0, total=0;
+    for(let x=x0;x<x1;x+=2){
+      const idx=(y*w+x)*4;
+      if(isDarkPixel(data,idx)) dark++;
+      total++;
+    }
+    if(total && dark/total>0.42) candidates.push(y);
+  }
+
+  return clusterPositions(candidates,4);
+}
+
+function averagePatchColor(pixels,cx,cy,radius=5){
+  const {width:w,height:h,data}=pixels;
+  let rr=0,gg=0,bb=0,n=0;
+  for(let y=Math.max(0,cy-radius);y<=Math.min(h-1,cy+radius);y++){
+    for(let x=Math.max(0,cx-radius);x<=Math.min(w-1,cx+radius);x++){
+      const idx=(y*w+x)*4;
+      if(data[idx+3]<80) continue;
+      rr+=data[idx]; gg+=data[idx+1]; bb+=data[idx+2]; n++;
+    }
+  }
+  return n ? [rr/n,gg/n,bb/n] : [255,255,255];
+}
+
+function colorDistance(a,b){
+  return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+}
+
+function classifySessionByColor(color){
+  const palette={
+    morning:[252,223,180],
+    afternoon:[227,227,228],
+    evening:[213,234,215]
+  };
+
+  let best='morning', bestD=Infinity;
+  for(const [key,target] of Object.entries(palette)){
+    const d=colorDistance(color,target);
+    if(d<bestD){ best=key; bestD=d; }
+  }
+
+  // 白色或非常不像三種色時，不視為資料列。
+  if(Math.min(...Object.values(palette).map(c=>colorDistance(color,c)))>95) return null;
+  return best;
+}
+
+function findInterval(value,lines){
+  for(let i=0;i<lines.length-1;i++){
+    if(value>=lines[i] && value<lines[i+1]) return i;
+  }
+  return -1;
+}
+
+function sanitizeDoctorName(text){
+  const cleaned=String(text || '')
+    .replace(/\s+/g,'')
+    .replace(/[|｜_\-—–·•:：;；,，.。/\\()[\]{}<>《》「」『』]/g,'');
+
+  // 醫師姓名通常為 2–4 個中文字；若 OCR 有辨識到漢字，優先只保留漢字。
+  const han=[...cleaned].filter(ch=>/[\u3400-\u9FFF\uF900-\uFAFF]/.test(ch)).join('');
+  const preferred=han.length ? han : cleaned;
+  return [...preferred].slice(0,4).join('');
+}
+
+
+function createEnhancedOcrCanvas(sourceCanvas,xLines=[],yLines=[]){
+  const out=document.createElement('canvas');
+  out.width=sourceCanvas.width;
+  out.height=sourceCanvas.height;
+  const ctx=out.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(sourceCanvas,0,0);
+
+  const image=ctx.getImageData(0,0,out.width,out.height);
+  const d=image.data;
+
+  // 將三種底色與白底統一成白色，文字轉為高對比黑色。
+  // 這對細字、灰底與淡色底上的中文字辨識會明顯穩定。
+  for(let i=0;i<d.length;i+=4){
+    const lum=0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2];
+    const v=lum<188 ? 0 : 255;
+    d[i]=d[i+1]=d[i+2]=v;
+    d[i+3]=255;
+  }
+  ctx.putImageData(image,0,0);
+
+  // 擦除表格線，避免 OCR 把線條黏到中文字筆畫。
+  ctx.save();
+  ctx.strokeStyle='#fff';
+  ctx.lineCap='square';
+  ctx.lineWidth=Math.max(3,Math.round(out.width/500));
+  for(const x of xLines){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,out.height); ctx.stroke();
+  }
+  for(const y of yLines){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(out.width,y); ctx.stroke();
+  }
+  ctx.restore();
+
+  return out;
+}
+
+function createCellOcrCanvas(sourceCanvas,x0,y0,x1,y1,scale=3){
+  const inset=3;
+  const sx=Math.max(0,Math.round(x0+inset));
+  const sy=Math.max(0,Math.round(y0+inset));
+  const sw=Math.max(2,Math.round(x1-x0-inset*2));
+  const sh=Math.max(2,Math.round(y1-y0-inset*2));
+
+  const padding=18;
+  const out=document.createElement('canvas');
+  out.width=Math.max(80,Math.round(sw*scale)+padding*2);
+  out.height=Math.max(50,Math.round(sh*scale)+padding*2);
+  const ctx=out.getContext('2d',{willReadFrequently:true});
+
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,out.width,out.height);
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(sourceCanvas,sx,sy,sw,sh,padding,padding,sw*scale,sh*scale);
+
+  const image=ctx.getImageData(0,0,out.width,out.height);
+  const d=image.data;
+
+  // 單格 OCR 用較寬鬆閾值保留細筆畫，再把背景壓白。
+  for(let i=0;i<d.length;i+=4){
+    const lum=0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2];
+    const v=lum<202 ? 0 : 255;
+    d[i]=d[i+1]=d[i+2]=v;
+    d[i+3]=255;
+  }
+  ctx.putImageData(image,0,0);
+  return out;
+}
+
+async function recognizeSingleCell(worker,canvas,type='doctor'){
+  // 單一儲存格採單行模式，提高短中文字串辨識率。
+  const params={
+    tessedit_pageseg_mode:'7',
+    preserve_interword_spaces:'0',
+    user_defined_dpi:'300'
+  };
+
+  if(type==='clinic'){
+    params.tessedit_char_whitelist='0123456789';
+  }else{
+    // 清掉診別數字 whitelist。
+    params.tessedit_char_whitelist='';
+  }
+
+  await worker.setParameters(params);
+  const result=await worker.recognize(canvas);
+  return String(result.data?.text || '').trim();
+}
+
+async function enhanceMissingCells(worker,sourceCanvas,rows,xLines,onProgress){
+  let targets=[];
+
+  rows.forEach((row,rowIndex)=>{
+    if(!row.clinic){
+      targets.push({row,rowIndex,col:1,type:'clinic'});
+    }
+
+    for(let col=2;col<=7;col++){
+      // 星期六晚診固定休診，不需辨識。
+      if(row.session==='evening' && col===7) continue;
+
+      const nameIndex=col-2;
+      const current=row.names[nameIndex] || '';
+
+      // 空白或只有 1 個字時做二次辨識。一般中文姓名多為 2–4 字。
+      if([...current].length<=1){
+        targets.push({row,rowIndex,col,type:'doctor',nameIndex});
+      }
+    }
+  });
+
+  // 控制最壞情況的處理時間：最多對 80 個可疑格進行精準重試。
+  targets=targets.slice(0,80);
+
+  for(let i=0;i<targets.length;i++){
+    const t=targets[i];
+    const x0=xLines[t.col], x1=xLines[t.col+1];
+    const cellCanvas=createCellOcrCanvas(sourceCanvas,x0,t.row.y0,x1,t.row.y1,3.2);
+
+    if(onProgress) onProgress(i+1,targets.length);
+
+    try{
+      const text=await recognizeSingleCell(worker,cellCanvas,t.type);
+
+      if(t.type==='clinic'){
+        const m=text.match(/\d{1,2}/);
+        if(m) t.row.clinic=m[0];
+      }else{
+        const candidate=sanitizeDoctorName(text);
+
+        // 精準切格 OCR 得到 2–4 個字時，優先採用；
+        // 若原本完全空白，1 個字也先保留供人工校對。
+        if([...candidate].length>=2 || (!t.row.names[t.nameIndex] && candidate)){
+          t.row.names[t.nameIndex]=candidate;
+        }
+      }
+    }catch(err){
+      console.warn('單格 OCR 重試失敗',err);
+    }
+  }
+
+  // 恢復一般 OCR 參數，避免後續行為受 whitelist 影響。
+  try{
+    await worker.setParameters({
+      tessedit_pageseg_mode:'6',
+      tessedit_char_whitelist:'',
+      preserve_interword_spaces:'0'
+    });
+  }catch(_){}
+
+  return rows;
+}
+
+function normalizeOcrWords(words){
+  return (words || []).map(w=>{
+    const box=w.bbox || {};
+    const x0=box.x0 ?? 0, y0=box.y0 ?? 0, x1=box.x1 ?? 0, y1=box.y1 ?? 0;
+    return {
+      text:String(w.text || '').trim(),
+      confidence:Number(w.confidence ?? 0),
+      x0,y0,x1,y1,
+      cx:(x0+x1)/2,
+      cy:(y0+y1)/2
+    };
+  }).filter(w=>w.text && w.confidence>=12);
+}
+
+function buildImportedRows(words,xLines,yLines,pixels){
+  if(xLines.length<10){
+    throw new Error(`無法辨識完整欄位線（目前偵測到 ${xLines.length} 條）。請使用完整、正面且清晰的表格截圖。`);
+  }
+  if(yLines.length<5){
+    throw new Error('無法辨識表格橫線。請確認圖片沒有被裁切。');
+  }
+
+  // 取 10 條最主要欄界。
+  if(xLines.length!==10){
+    xLines=xLines.slice(0,10);
+  }
+
+  // 第一段通常是表頭；找出資料列，並依底色判斷早／午／晚診。
+  const dataRows=[];
+  const clinicSampleX=Math.round(xLines[1]+Math.max(4,(xLines[2]-xLines[1])*0.12));
+
+  for(let i=1;i<yLines.length-1;i++){
+    const y0=yLines[i], y1=yLines[i+1];
+    if(y1-y0<5) continue;
+    const cy=Math.round((y0+y1)/2);
+    const color=averagePatchColor(pixels,clinicSampleX,cy,4);
+    const session=classifySessionByColor(color);
+    if(!session) continue;
+    dataRows.push({y0,y1,cy,session,clinic:'',names:Array(7).fill('')});
+  }
+
+  if(!dataRows.length){
+    throw new Error('沒有辨識到早診／午診／晚診資料列。');
+  }
+
+  const rowLines=[dataRows[0].y0,...dataRows.map(r=>r.y1)];
+  const normalized=normalizeOcrWords(words);
+
+  // 先以 bbox 中心點將 OCR 文字放回表格格子。
+  const cellText=new Map();
+  for(const word of normalized){
+    const col=findInterval(word.cx,xLines);
+    if(col<1 || col>8) continue;
+
+    let rowIndex=-1;
+    for(let r=0;r<dataRows.length;r++){
+      if(word.cy>=dataRows[r].y0 && word.cy<dataRows[r].y1){
+        rowIndex=r; break;
+      }
+    }
+    if(rowIndex<0) continue;
+
+    const key=`${rowIndex}:${col}`;
+    if(!cellText.has(key)) cellText.set(key,[]);
+    cellText.get(key).push(word);
+  }
+
+  for(let r=0;r<dataRows.length;r++){
+    // 診別欄（第 2 欄，col=1）
+    const clinicWords=(cellText.get(`${r}:1`) || []).sort((a,b)=>a.cx-b.cx);
+    const clinicText=clinicWords.map(w=>w.text).join('');
+    const clinicMatch=clinicText.match(/\d{1,2}/);
+    dataRows[r].clinic=clinicMatch ? clinicMatch[0] : '';
+
+    // 星期一～六（col 2..7）
+    for(let col=2;col<=7;col++){
+      const doctorWords=(cellText.get(`${r}:${col}`) || []).sort((a,b)=>a.cx-b.cx);
+      const text=doctorWords.map(w=>w.text).join('');
+      dataRows[r].names[col-2]=sanitizeDoctorName(text);
+    }
+  }
+
+  return dataRows;
+}
+
+function applyImportedRows(rows){
+  const grouped={morning:[],afternoon:[],evening:[]};
+
+  for(const row of rows){
+    grouped[row.session].push({
+      clinic:row.clinic ? `${row.clinic}診` : '診',
+      names:[...row.names]
+    });
+  }
+
+  const total=grouped.morning.length+grouped.afternoon.length+grouped.evening.length;
+  if(total>42){
+    throw new Error(`辨識到 ${total} 格，超過目前上限 42 格。`);
+  }
+  if(!grouped.morning.length || !grouped.afternoon.length || !grouped.evening.length){
+    throw new Error('三個時段沒有全部辨識成功，請換一張更清晰、完整的表格圖片。');
+  }
+
+  data={
+    morning:grouped.morning,
+    afternoon:grouped.afternoon,
+    evening:grouped.evening
+  };
+
+  counts.morning.value=grouped.morning.length;
+  counts.afternoon.value=grouped.afternoon.length;
+  counts.evening.value=grouped.evening.length;
+
+  render();
+  const filled=rows.reduce((sum,row)=>sum+row.names.slice(0,6).filter(Boolean).length,0);
+  setImportStatus(
+    `匯入完成：早診 ${grouped.morning.length} 格、午診 ${grouped.afternoon.length} 格、晚診 ${grouped.evening.length} 格；辨識到 ${filled} 筆醫師姓名。請再人工檢查一次。`,
+    'ok'
+  );
+}
+
+async function importScheduleFromImage(){
+  if(!importedTableImage){
+    setImportStatus('請先上傳門診表圖片。','error');
+    return;
+  }
+  if(!window.Tesseract){
+    setImportStatus('OCR 模組載入失敗。請確認目前裝置可以連上網路後重新整理頁面。','error');
+    return;
+  }
+
+  const button=document.getElementById('importImageBtn');
+  button.disabled=true;
+
+  let worker=null;
+
+  try{
+    setImportStatus('正在分析表格線條與影像品質…');
+
+    const img=await loadImageElement(importedTableImage);
+    const canvas=document.createElement('canvas');
+    canvas.width=img.naturalWidth || img.width;
+    canvas.height=img.naturalHeight || img.height;
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+    const pixels=getImagePixels(canvas);
+    const xLines=detectVerticalGridLines(canvas,pixels);
+    const yLines=detectHorizontalGridLines(canvas,pixels,xLines);
+
+    if(xLines.length<9){
+      throw new Error(`表格直線辨識不足（${xLines.length} 條），請使用正面、完整、不要裁切的表格圖片。`);
+    }
+
+    // 第一階段：全圖先去除格線、統一背景並提高文字對比。
+    const enhancedCanvas=createEnhancedOcrCanvas(canvas,xLines,yLines);
+
+    setImportStatus('第一階段：正在進行高對比全表辨識…');
+
+    worker=await Tesseract.createWorker('chi_tra+eng',1,{
+      logger:m=>{
+        if(m.status==='recognizing text' && Number.isFinite(m.progress)){
+          setImportStatus(`第一階段：全表辨識 ${Math.round(m.progress*100)}%`);
+        }
+      }
+    });
+
+    await worker.setParameters({
+      tessedit_pageseg_mode:'6',
+      preserve_interword_spaces:'0',
+      user_defined_dpi:'300'
+    });
+
+    const result=await worker.recognize(enhancedCanvas);
+    let rows=buildImportedRows(result.data.words || [],xLines,yLines,pixels);
+
+    // 第二階段：對「漏字／只辨識到 1 字」的儲存格逐格裁切、3.2 倍放大後再辨識。
+    setImportStatus('第二階段：正在針對漏字格進行精準辨識…');
+
+    rows=await enhanceMissingCells(
+      worker,
+      canvas,
+      rows,
+      xLines,
+      (done,total)=>{
+        setImportStatus(`第二階段：精準補字 ${done} / ${total}`);
+      }
+    );
+
+    applyImportedRows(rows);
+  }catch(err){
+    console.error(err);
+    setImportStatus(`匯入失敗：${err.message || err}`,'error');
+  }finally{
+    if(worker){
+      try{ await worker.terminate(); }catch(_){}
+    }
+    button.disabled=false;
+  }
+}
+
+document.getElementById('importImageBtn').addEventListener('click',importScheduleFromImage);
+
+
 function getDoctorFontPt(){
   const total=totalCount();
   const minPt=8.5;
   const maxPt=10;
   if(total<=9) return maxPt;
-  if(total>=40) return minPt;
-  const ratio=(total-9)/(40-9);
+  if(total>=42) return minPt;
+  const ratio=(total-9)/(42-9);
   return +(maxPt-(maxPt-minPt)*ratio).toFixed(2);
 }
 
@@ -496,11 +2004,11 @@ function updateCellFontSize(){
   if(!table) return;
 
   const total=totalCount();
-  // 9 格時使用 12pt；40 格時縮至 8.5pt，中間線性縮放。
+  // 9 格時使用 12pt；42 格時縮至 8.5pt，中間線性縮放。
   const maxPt=12;
   const minPt=8.5;
   const minRows=9;
-  const maxRows=40;
+  const maxRows=42;
 
   let sizePt=maxPt;
   if(total>minRows){
@@ -885,16 +2393,16 @@ async function addDpiMetadata(blob,dpi=300){
 }
 
 async function downloadPNG(){
-  if(totalCount()>40) return;
+  if(totalCount()>42) return;
   const DPI=300;
   const cmToPx=cm=>Math.round(cm/2.54*DPI);
   const W=cmToPx(17);
   const totalRows=totalCount();
 
-  // 診別與醫師姓名字級：9 格時 12pt，40 格時 8.5pt，中間線性縮放
+  // 診別與醫師姓名字級：9 格時 12pt，42 格時 8.5pt，中間線性縮放
   const maxCellPt=12;
   const minCellPt=8.5;
-  const tCell=Math.min(1,Math.max(0,(totalRows-9)/(40-9)));
+  const tCell=Math.min(1,Math.max(0,(totalRows-9)/(42-9)));
   const cellPt=Math.max(minCellPt,Math.min(maxCellPt,maxCellPt-(maxCellPt-minCellPt)*tCell));
   const cellFontPx=cellPt/72*DPI;
   // 9 格 = 9cm；之後依格數增加高度，最高不超過 16cm

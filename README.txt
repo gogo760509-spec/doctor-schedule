@@ -1,28 +1,42 @@
-門診醫師表格製作網站｜上架版
+門診醫師表格製作網站｜圖片＋Excel＋Word＋PDF 匯入版
 
-檔案：
-- index.html：網站主檔，可直接部署
+支援匯入
+1. 圖片：PNG / JPG / WEBP
+   - 雙階段繁中 OCR
+   - 高對比去格線
+   - 漏字格逐格放大重試
 
-上架方式：
-1. 將 index.html 上傳到網站主機的公開目錄。
-2. 若使用 GitHub Pages / Netlify / Vercel / Cloudflare Pages，可直接上傳此資料夾或 ZIP 解壓後部署。
-3. 網站為純前端單頁，不需要資料庫、不需要後端、不需要安裝套件。
+2. Excel：XLSX / XLS / XLSM
+   - 直接讀取儲存格
+   - 可選工作表
+   - 自動辨識門診時間／診別／星期欄位
 
-功能：
-- 自訂早診／午診／晚診診別格數，最多共 40 格
-- 診別僅可修改數字，「診」固定鎖定
-- 醫師姓名可直接輸入，最多 4 字
-- 已處理中文輸入法 IME 重複字問題
-- 星期六晚診固定休診、星期日固定休診
-- 清空醫師名字、清空診別
-- PNG 下載 300 dpi
-- 表格外圍透明背景
-- 寬度固定 17 cm，高度依格數 9–16 cm
+3. Word：DOCX / DOCM
+   - 直接讀取 Word 表格
+   - 支援合併儲存格
+   - 若使用舊版 .doc，請先另存為 .docx
 
-字體：
-- 優先使用 Source Han Sans TC / 思源黑體
-- 若使用者裝置未安裝，會依序使用 Noto Sans TC / PingFang TC / Microsoft JhengHei
+4. PDF
+   - 文字型 PDF：優先直接讀取文字層
+   - 掃描型 PDF：自動改用繁中 OCR
+   - 建議使用正面、清晰、完整的門診表 PDF
 
-注意：
-- 不需要額外圖片、CSS 或 JavaScript 檔案。
-- 此版本為單一 index.html，可離線開啟，也可直接部署到靜態網站服務。
+其他功能
+- 三時段合計最多 42 格
+- 診別「診」固定鎖定，只能修改數字
+- 醫師姓名最多 4 字
+- 中文輸入法 IME 重複字修正
+- 星期六晚診、星期日固定休診
+- 清空醫師名字／清空診別
+- PNG 300 dpi，表格外圍透明
+
+網路需求
+- Excel：SheetJS
+- Word：Mammoth.js
+- PDF：PDF.js
+- 圖片／掃描型 PDF OCR：Tesseract.js
+以上函式庫目前由 CDN 載入，因此首次使用相關匯入功能需要網路。
+
+上架
+- 將 index.html 放到網站公開目錄即可。
+- 可部署至 GitHub Pages / Netlify / Vercel / Cloudflare Pages。

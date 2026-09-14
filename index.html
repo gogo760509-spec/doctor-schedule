@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>門診醫師表格製作</title>
+<!-- clinic-lock-v1: suffix 診 locked; numeric prefix editable only -->
+<style>
+  :root{
+    --morning:#FCDFB4;
+    --afternoon:#E3E3E4;
+    --evening:#D5EAD7;
+    --header:#000000;
+    --paper:#FFFFFF;
+    --line:#000000;
+    --panel:#F6F7F8;
+    --accent:#111111;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    color:#111;
+    background:#eceff1;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  .app{
+    height:100vh;
+    overflow:hidden;
+    display:grid;
+    grid-template-columns:320px minmax(0,1fr);
+  }
+  .panel{
+    background:var(--panel);
+    border-right:1px solid #d8dadd;
+    padding:22px 18px;
+    height:100vh;
+    overflow:auto;
+    position:sticky;
+    top:0;
+  }
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{font-size:13px;color:#666;line-height:1.6;margin-bottom:20px}
+  .group{border-top:1px solid #d8dadd;padding-top:16px;margin-top:16px}
+  .group h2{font-size:15px;margin:0 0 10px}
+  .row{display:grid;grid-template-columns:1fr 92px;gap:10px;align-items:center;margin:8px 0}
+  label{font-size:14px}
+  input[type="number"], select{
+    width:100%;
+    padding:8px 9px;
+    border:1px solid #bbb;
+    border-radius:8px;
+    background:white;
+    font:inherit;
+  }
+  .sum{
+    margin-top:8px;padding:9px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;font-size:13px;
+  }
+  .sum.bad{border-color:#c62828;color:#c62828;background:#fff4f4}
+  .fixed{
+    font-size:13px;
+    line-height:1.8;
+    background:white;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .legend{display:grid;gap:7px;font-size:13px}
+  .swatch{display:flex;align-items:center;gap:8px}
+  .swatch i{width:28px;height:18px;border:1px solid #222;display:inline-block}
+  .actions{display:grid;gap:10px;margin-top:18px}
+  button{
+    appearance:none;
+    border:0;
+    border-radius:10px;
+    padding:11px 14px;
+    font:700 14px inherit;
+    cursor:pointer;
+  }
+  .primary{background:#111;color:#fff}
+  .secondary{background:#fff;color:#111;border:1px solid #bbb}
+  .workspace{
+    height:100vh;
+    padding:20px 24px 80px;
+    overflow-y:scroll;
+    overflow-x:auto;
+    display:block;
+    scrollbar-gutter:stable;
+  }
+  .workspace::-webkit-scrollbar{width:12px}
+  .workspace::-webkit-scrollbar-track{background:#e4e7e9}
+  .workspace::-webkit-scrollbar-thumb{background:#a9afb4;border-radius:8px;border:3px solid #e4e7e9}
+  .preview-shell{
+    width:max-content;
+    min-width:17cm;
+    margin:0 auto;
+  }
+  .sheet-wrap{
+    width:max-content;
+    position:static;
+    transform:none !important;
+  }
+  .sheet{
+    width:17cm;
+    max-width:17cm;
+    min-height:9cm;
+    height:auto;
+    background:transparent;
+    margin:0 auto;
+    padding:0.42cm 0.42cm 0.38cm;
+    box-shadow:none;
+    display:block;
+    overflow:visible;
+  }
+  .sheet-title{
+    font-size:0.43cm;
+    line-height:1.25;
+    font-weight:700;
+    margin-bottom:0.25cm;
+    white-space:nowrap;
+  }
+  table{
+    width:100%;
+    height:auto;
+    border-collapse:collapse;
+    table-layout:fixed;
+    font-size:0.25cm;
+    line-height:1;
+  }
+  th,td{
+    border:1px solid var(--line);
+    text-align:center;
+    padding:0;
+    overflow:hidden;
+    line-height:1;
+  }
+  /* 各時段之間的分隔線：一般 1px → 加粗為 2px */
+  tr.session-start > td{
+    border-top-width:2px;
+  }
+  th{
+    background:var(--header);
+    color:#fff;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:700;
+    font-size:10pt;
+    height:0.54cm;
+    border-top-color:#000;
+    border-bottom-color:#000;
+    border-left-color:#fff;
+    border-right-color:#fff;
+  }
+  th:first-child{
+    border-left-color:#000;
+  }
+  th:last-child{
+    border-right-color:#000;
+  }
+  tbody tr{
+    height:0.72cm;
+    min-height:0.72cm;
+  }
+  .timecol{width:2.15cm}
+  .cliniccol{width:1.65cm}
+  .daycol{width:auto}
+  .session{
+    font-weight:400;
+    text-align:center;
+    vertical-align:middle;
+    padding:0;
+  }
+  .session-box{
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+  }
+  .session-name{
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:10pt;
+    line-height:1.15;
+    margin-bottom:0.12cm;
+  }
+  .session-time{
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:10pt;
+    line-height:1.15;
+  }
+  .session-divider{
+    width:1px;
+    height:0.42cm;
+    background:#000;
+    margin:0.08cm 0;
+    flex:0 0 auto;
+  }
+  .morning{background:var(--morning)}
+  .afternoon{background:var(--afternoon)}
+  .evening{background:var(--evening)}
+  .cell-edit{
+    width:100%;
+    height:100%;
+    min-height:0;
+    border:0;
+    outline:0;
+    background:transparent;
+    text-align:center;
+    padding:0 1px;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:clamp(8.5pt, var(--cell-font-size, 12pt), 12pt);
+    line-height:1;
+    color:#000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    white-space:nowrap;
+  }
+  .clinic-edit-wrap{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:clamp(8.5pt, var(--cell-font-size, 12pt), 12pt);
+    line-height:1;
+    color:#000;
+  }
+  .clinic-number{
+    width:2.2ch;
+    min-width:1ch;
+    border:0;
+    outline:0;
+    background:transparent;
+    text-align:right;
+    padding:0;
+    margin:0;
+    font:inherit;
+    color:inherit;
+  }
+  .clinic-number:focus{
+    background:rgba(255,255,255,.65);
+  }
+  .clinic-suffix{
+    flex:0 0 auto;
+    user-select:none;
+    pointer-events:none;
+  }
+  .cell-edit:focus{
+    background:rgba(255,255,255,.65);
+    box-shadow:inset 0 0 0 1px #376cff;
+  }
+  .doctor-input{
+    width:100%;
+    height:100%;
+    min-height:0;
+    border:0;
+    outline:0;
+    background:transparent;
+    text-align:center;
+    padding:0 1px;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:clamp(8.5pt, var(--doctor-font-size, 10pt), 10pt);
+    line-height:1;
+    color:#000;
+  }
+  .doctor-input:focus{
+    background:rgba(255,255,255,.65);
+    box-shadow:inset 0 0 0 1px #376cff;
+  }
+
+  .doctor-edit{
+    position:relative;
+  }
+  .closed{
+    background:#fff!important;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:10pt;
+    line-height:1;
+    letter-spacing:0.10cm;
+    writing-mode:vertical-rl;
+    text-orientation:upright;
+    white-space:normal;
+    vertical-align:middle;
+  }
+  .sat-closed{
+    background:#fff!important;
+    font-family:"Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    font-weight:400;
+    font-size:10pt;
+    line-height:1;
+    letter-spacing:0.10cm;
+    writing-mode:vertical-rl;
+    text-orientation:upright;
+    white-space:normal;
+    vertical-align:middle;
+  }
+  .scroll-note{
+    width:17cm;
+    margin:0 auto 10px;
+    font-size:13px;
+    color:#666;
+    text-align:right;
+  }
+  .hint{
+    width:17cm;
+    text-align:center;
+    max-width:17cm;
+    margin:14px auto 0;
+    color:#666;
+    font-size:13px;
+  }
+  @media(max-width:1200px){
+    .app{grid-template-columns:280px minmax(0,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>門診醫師表格製作</h1>
+    <div class="sub">診別只可修改前方數字，「診」固定不可變更；醫師姓名可直接輸入，最多 4 個字。門診時間與休診規則固定不可變更。</div>
+
+    <div class="group">
+      <h2>診別格數</h2>
+      <div class="row"><label for="morningCount">早診</label><input id="morningCount" type="number" min="1" max="40" value="3"></div>
+      <div class="row"><label for="afternoonCount">午診</label><input id="afternoonCount" type="number" min="1" max="40" value="3"></div>
+      <div class="row"><label for="eveningCount">晚診</label><input id="eveningCount" type="number" min="1" max="40" value="3"></div>
+      <div id="sumBox" class="sum">三時段合計：9 / 40 格</div>
+    </div>
+
+    <div class="group">
+      <h2>固定門診時間</h2>
+      <div class="fixed">
+        早診　08:30–12:00<br>
+        午診　14:00–17:30<br>
+        晚診　18:00–21:30<br>
+        星期六晚診　休診<br>
+        星期日　休診
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>參考圖固定配色</h2>
+      <div class="legend">
+        <span class="swatch"><i style="background:#FCDFB4"></i>早診 #FCDFB4</span>
+        <span class="swatch"><i style="background:#E3E3E4"></i>午診 #E3E3E4</span>
+        <span class="swatch"><i style="background:#D5EAD7"></i>晚診 #D5EAD7</span>
+        <span class="swatch"><i style="background:#000"></i>表頭 #000000</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="downloadBtn">下載 PNG（寬 17 cm／高 9–16 cm／300 dpi）</button>
+      <button class="secondary" id="resetBtn">清空醫師名字</button>
+      <button class="secondary" id="clearClinicBtn">清空診別</button>
+    </div>
+  </aside>
+
+  <main class="workspace" id="workspace">
+    <div class="preview-shell" id="previewShell">
+      <div class="scroll-note">↓ 可向下捲動，完整填寫早診／午診／晚診</div>
+      <div class="sheet-wrap" id="sheetWrap">
+      <section class="sheet" id="sheet">
+        <table id="scheduleTable">
+          <colgroup>
+            <col class="timecol">
+            <col class="cliniccol">
+            <col class="daycol"><col class="daycol"><col class="daycol"><col class="daycol">
+            <col class="daycol"><col class="daycol"><col class="daycol">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>門診時間</th><th>診別</th>
+              <th>星期一</th><th>星期二</th><th>星期三</th><th>星期四</th>
+              <th>星期五</th><th>星期六</th><th>星期日</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </section>
+        <div class="hint">表格寬度固定 17 cm、最小高度 9 cm；早診／午診／晚診預設各 3 格。格數增加時高度會自動延伸，最高不超過 16 cm；下載 PNG 為 300 dpi，表格外圍為透明背景。</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const COLORS = {
+  morning:'#FCDFB4',
+  afternoon:'#E3E3E4',
+  evening:'#D5EAD7',
+  header:'#000000',
+  white:'#FFFFFF',
+  line:'#000000'
+};
+const sessions = [
+  {key:'morning', name:'早診', start:'08:30', end:'12:00', cls:'morning'},
+  {key:'afternoon', name:'午診', start:'14:00', end:'17:30', cls:'afternoon'},
+  {key:'evening', name:'晚診', start:'18:00', end:'21:30', cls:'evening'}
+];
+const counts = {
+  morning: document.getElementById('morningCount'),
+  afternoon: document.getElementById('afternoonCount'),
+  evening: document.getElementById('eveningCount')
+};
+let data = {
+  morning: makeRows(3),
+  afternoon: makeRows(3),
+  evening: makeRows(3)
+};
+
+function makeRows(n){
+  return Array.from({length:n},(_,i)=>({
+    clinic:`${i+1}診`,
+    names:Array(7).fill('')
+  }));
+}
+function clamp(v){ return Math.max(1,Math.min(40,Number(v)||1)); }
+function totalCount(){
+  return clamp(counts.morning.value)+clamp(counts.afternoon.value)+clamp(counts.evening.value);
+}
+function getCellFontPt(){
+  const total=totalCount();
+  const minPt=8.5;
+  const maxPt=12;
+  if(total<=9) return maxPt;
+  if(total>=40) return minPt;
+  const ratio=(total-9)/(40-9);
+  return +(maxPt-(maxPt-minPt)*ratio).toFixed(2);
+}
+function limitEditableText(el,maxChars){
+  const chars=[...(el.textContent || '').replace(/[\r\n]+/g,'')];
+  const limited=chars.slice(0,maxChars).join('');
+  if(el.textContent!==limited){
+    el.textContent=limited;
+    const range=document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel=window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  return limited;
+}
+function resizeData(key,n){
+  const old=data[key];
+  if(n>old.length){
+    for(let i=old.length;i<n;i++) old.push({clinic:`${i+1}診`,names:Array(7).fill('')});
+  }else if(n<old.length){
+    data[key]=old.slice(0,n);
+  }
+}
+function updateCounts(){
+  const vals = {};
+  for(const s of sessions){
+    vals[s.key]=clamp(counts[s.key].value);
+    counts[s.key].value=vals[s.key];
+  }
+  const sum=vals.morning+vals.afternoon+vals.evening;
+  const box=document.getElementById('sumBox');
+  box.textContent=`三時段合計：${sum} / 40 格`;
+  box.classList.toggle('bad',sum>40);
+  document.getElementById('downloadBtn').disabled=sum>40;
+  if(sum<=40){
+    for(const s of sessions) resizeData(s.key,vals[s.key]);
+    render();
+  }
+}
+Object.values(counts).forEach(el=>el.addEventListener('input',updateCounts));
+
+
+
+
+
+function getDoctorFontPt(){
+  const total=totalCount();
+  const minPt=8.5;
+  const maxPt=10;
+  if(total<=9) return maxPt;
+  if(total>=40) return minPt;
+  const ratio=(total-9)/(40-9);
+  return +(maxPt-(maxPt-minPt)*ratio).toFixed(2);
+}
+
+function updateCellFontSize(){
+  const table=document.getElementById('scheduleTable');
+  if(!table) return;
+
+  const total=totalCount();
+  // 9 格時使用 12pt；40 格時縮至 8.5pt，中間線性縮放。
+  const maxPt=12;
+  const minPt=8.5;
+  const minRows=9;
+  const maxRows=40;
+
+  let sizePt=maxPt;
+  if(total>minRows){
+    const t=Math.min(1,(total-minRows)/(maxRows-minRows));
+    sizePt=maxPt-(maxPt-minPt)*t;
+  }
+  sizePt=Math.max(minPt,Math.min(maxPt,sizePt));
+  table.style.setProperty('--cell-font-size',`${sizePt.toFixed(2)}pt`);
+  table.style.setProperty('--doctor-font-size',`${getDoctorFontPt().toFixed(2)}pt`);
+}
+
+function fitTableRows(){
+  // 編輯模式採完整顯示，不壓縮列高。
+  // 17×16cm 的尺寸限制只在 PNG 匯出時套用。
+}
+
+function fitPreview(){
+  const wrap=document.getElementById('sheetWrap');
+  const shell=document.getElementById('previewShell');
+  if(!wrap || !shell) return;
+  wrap.style.transform='none';
+  shell.style.width=`${wrap.offsetWidth}px`;
+  shell.style.height='auto';
+}
+window.addEventListener('resize',()=>requestAnimationFrame(()=>{
+  fitPreview();
+}));
+
+
+function render(){
+  const body=document.getElementById('tableBody');
+  body.innerHTML='';
+  const table=document.getElementById('scheduleTable');
+  table.style.height='auto';
+  table.style.setProperty('--cell-font-size',`${getCellFontPt()}pt`);
+  sessions.forEach((s,si)=>{
+    const rows=data[s.key];
+    rows.forEach((row,ri)=>{
+      const tr=document.createElement('tr');
+      tr.className=s.cls;
+      if(ri===0 && si>0) tr.classList.add('session-start');
+
+      if(ri===0){
+        const td=document.createElement('td');
+        td.rowSpan=rows.length;
+        td.className=`session ${s.cls}`;
+        const box=document.createElement('div');
+        box.className='session-box';
+
+        const name=document.createElement('div');
+        name.className='session-name';
+        name.textContent=s.name;
+
+        const start=document.createElement('div');
+        start.className='session-time';
+        start.textContent=s.start;
+
+        const divider=document.createElement('div');
+        divider.className='session-divider';
+
+        const end=document.createElement('div');
+        end.className='session-time';
+        end.textContent=s.end;
+
+        box.append(name,start,divider,end);
+        td.appendChild(box);
+        tr.appendChild(td);
+      }
+
+      const clinic=document.createElement('td');
+      clinic.className=s.cls;
+
+      const clinicWrap=document.createElement('div');
+      clinicWrap.className='clinic-edit-wrap';
+
+      const clinicInput=document.createElement('input');
+      clinicInput.type='text';
+      clinicInput.inputMode='numeric';
+      clinicInput.className='clinic-number';
+      clinicInput.maxLength=2;
+      clinicInput.autocomplete='off';
+      clinicInput.spellcheck=false;
+
+      const currentClinicNumber=(row.clinic.match(/\d+/) || [''])[0];
+      clinicInput.value=currentClinicNumber;
+      clinicInput.setAttribute('aria-label',`${s.name} 診別 ${ri+1}，只可修改數字`);
+
+      const clinicSuffix=document.createElement('span');
+      clinicSuffix.className='clinic-suffix';
+      clinicSuffix.textContent='診';
+      clinicSuffix.setAttribute('aria-hidden','true');
+
+      clinicInput.addEventListener('input',e=>{
+        const digits=e.currentTarget.value.replace(/\D+/g,'').slice(0,2);
+        if(e.currentTarget.value!==digits) e.currentTarget.value=digits;
+        row.clinic=`${digits}診`;
+      });
+
+      clinicInput.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){
+          e.preventDefault();
+          clinicInput.blur();
+        }
+      });
+
+      clinicWrap.append(clinicInput,clinicSuffix);
+      clinic.appendChild(clinicWrap);
+      tr.appendChild(clinic);
+
+      for(let day=0;day<7;day++){
+        if(day===6){
+          // 星期日全天休診：只在整張表第一列建立一個跨早/午/晚三時段的合併欄位
+          if(si===0 && ri===0){
+            const td=document.createElement('td');
+            td.rowSpan=totalCount();
+            td.className='closed';
+            td.textContent='休診';
+            tr.appendChild(td);
+          }
+          continue;
+        }
+        if(s.key==='evening' && day===5){
+          if(ri===0){
+            const td=document.createElement('td');
+            td.rowSpan=rows.length;
+            td.className='sat-closed';
+            td.textContent='休診';
+            tr.appendChild(td);
+          }
+          continue;
+        }
+        const td=document.createElement('td');
+        td.className=s.cls;
+        const inp=document.createElement('input');
+        inp.type='text';
+        inp.className='doctor-input';
+        inp.autocomplete='off';
+        inp.spellcheck=false;
+        inp.value=row.names[day];
+        inp.setAttribute('aria-label',`${s.name} ${row.clinic} 星期${'一二三四五六日'[day]} 醫師（最多4字）`);
+
+        // 中文輸入法修正：
+        // 不相信瀏覽器 composition 結束後的 input.value，
+        // 而是用「組字前內容 + compositionend 的最終文字 + 組字後內容」重建結果。
+        // 這可避開部分 WebView / Safari / Chromium 會把同一段組字提交兩次的情況。
+        let isComposing=false;
+        let compositionBefore='';
+        let compositionAfter='';
+        let compositionData='';
+        let committedValue=inp.value;
+        let suppressPostCompositionInput=false;
+
+        const normalizeDoctorName=value=>{
+          return [...String(value).replace(/[\r\n]+/g,'')].slice(0,4).join('');
+        };
+
+        const commitDoctorValue=value=>{
+          const cleaned=normalizeDoctorName(value);
+          inp.value=cleaned;
+          row.names[day]=cleaned;
+          committedValue=cleaned;
+          return cleaned;
+        };
+
+        inp.addEventListener('compositionstart',()=>{
+          isComposing=true;
+          compositionData='';
+
+          const start=inp.selectionStart ?? inp.value.length;
+          const end=inp.selectionEnd ?? start;
+          compositionBefore=inp.value.slice(0,start);
+          compositionAfter=inp.value.slice(end);
+        });
+
+        inp.addEventListener('compositionupdate',e=>{
+          compositionData=e.data || compositionData;
+        });
+
+        inp.addEventListener('compositionend',e=>{
+          isComposing=false;
+
+          const finalComposition=e.data || compositionData || '';
+          const intended=compositionBefore + finalComposition + compositionAfter;
+          const cleaned=commitDoctorValue(intended);
+
+          // 有些瀏覽器會在 compositionend 後再送一次 input，
+          // 並把剛剛的文字重複塞入；下一個 task 前一律恢復成已確認值。
+          suppressPostCompositionInput=true;
+          requestAnimationFrame(()=>{
+            if(inp.value!==committedValue){
+              inp.value=committedValue;
+            }
+            const pos=Math.min(cleaned.length, [...compositionBefore + finalComposition].slice(0,4).join('').length);
+            try{ inp.setSelectionRange(pos,pos); }catch(_){}
+          });
+          setTimeout(()=>{ suppressPostCompositionInput=false; },0);
+        });
+
+        inp.addEventListener('input',e=>{
+          if(isComposing || e.isComposing) return;
+
+          if(suppressPostCompositionInput){
+            if(inp.value!==committedValue){
+              inp.value=committedValue;
+              try{
+                const pos=inp.value.length;
+                inp.setSelectionRange(pos,pos);
+              }catch(_){}
+            }
+            return;
+          }
+
+          // 一般鍵盤輸入／貼上：正常同步，最多 4 個字。
+          commitDoctorValue(inp.value);
+        });
+
+        inp.addEventListener('blur',()=>{
+          commitDoctorValue(inp.value);
+        });
+
+        inp.addEventListener('keydown',e=>{
+          if(e.key==='Enter'){
+            e.preventDefault();
+            inp.blur();
+          }
+        });
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    });
+  });
+  requestAnimationFrame(()=>{
+    updateCellFontSize();
+    fitTableRows();
+    fitPreview();
+  });
+}
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  for(const s of sessions) data[s.key].forEach(r=>r.names.fill(''));
+  render();
+});
+
+document.getElementById('clearClinicBtn').addEventListener('click',()=>{
+  for(const s of sessions){
+    data[s.key].forEach(row=>{
+      row.clinic='診';
+    });
+  }
+  render();
+});
+
+function splitLines(ctx,text,maxWidth){
+  if(!text) return [''];
+  const chars=[...text];
+  const lines=[];
+  let line='';
+  for(const ch of chars){
+    const test=line+ch;
+    if(line && ctx.measureText(test).width>maxWidth){
+      lines.push(line); line=ch;
+    }else line=test;
+  }
+  if(line || !lines.length) lines.push(line);
+  return lines;
+}
+function drawCenteredText(ctx,text,x,y,w,h,fontSize,fontWeight='400',lineHeight=1.15){
+  ctx.save();
+  ctx.fillStyle='#000';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font=`${fontWeight} ${fontSize}px "Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+  const lines=splitLines(ctx,text,w-12);
+  const lh=fontSize*lineHeight;
+  const total=lh*lines.length;
+  lines.forEach((line,i)=>{
+    ctx.fillText(line,x+w/2,y+h/2-total/2+lh*(i+.5));
+  });
+  ctx.restore();
+}
+
+function drawVerticalText(ctx,text,x,y,w,h,fontSize,fontWeight='400',gapFactor=1.25){
+  ctx.save();
+  ctx.fillStyle='#000';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font=`${fontWeight} ${fontSize}px "Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+  const chars=[...text];
+  const gap=fontSize*gapFactor;
+  const total=gap*chars.length;
+  const startY=y+h/2-total/2+gap/2;
+  chars.forEach((ch,i)=>{
+    ctx.fillText(ch,x+w/2,startY+i*gap);
+  });
+  ctx.restore();
+}
+
+function drawSessionBlock(ctx,name,start,end,x,y,w,h,fontSize){
+  ctx.save();
+  ctx.fillStyle='#000';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+
+  const nameSize=fontSize;
+  const timeSize=fontSize;
+  const dividerH=Math.max(34,w*0.20);
+  const gap1=Math.max(10,w*0.055);
+  const gap2=Math.max(8,w*0.040);
+
+  const totalH=nameSize + gap1 + timeSize + gap2 + dividerH + gap2 + timeSize;
+  let cy=y+h/2-totalH/2;
+
+  ctx.font=`400 ${nameSize}px "Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+  ctx.fillText(name,x+w/2,cy+nameSize/2);
+  cy += nameSize + gap1;
+
+  ctx.font=`400 ${timeSize}px "Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+  ctx.fillText(start,x+w/2,cy+timeSize/2);
+  cy += timeSize + gap2;
+
+  ctx.beginPath();
+  ctx.moveTo(x+w/2,cy);
+  ctx.lineTo(x+w/2,cy+dividerH);
+  ctx.lineWidth=2;
+  ctx.strokeStyle='#000';
+  ctx.stroke();
+  cy += dividerH + gap2;
+
+  ctx.fillText(end,x+w/2,cy+timeSize/2);
+  ctx.restore();
+}
+function crc32(bytes){
+  let table=crc32.table;
+  if(!table){
+    table=crc32.table=new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let c=n;
+      for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      table[n]=c>>>0;
+    }
+  }
+  let c=0xFFFFFFFF;
+  for(const b of bytes) c=table[(c^b)&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+function makeChunk(type,data){
+  const out=new Uint8Array(12+data.length);
+  const dv=new DataView(out.buffer);
+  dv.setUint32(0,data.length);
+  const typeBytes=new TextEncoder().encode(type);
+  out.set(typeBytes,4);
+  out.set(data,8);
+  const crcInput=new Uint8Array(4+data.length);
+  crcInput.set(typeBytes,0); crcInput.set(data,4);
+  dv.setUint32(8+data.length,crc32(crcInput));
+  return out;
+}
+async function addDpiMetadata(blob,dpi=300){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const signature=bytes.slice(0,8);
+  let pos=8, parts=[signature], inserted=false;
+  const ppm=Math.round(dpi/0.0254);
+  while(pos<bytes.length){
+    const len=new DataView(bytes.buffer,bytes.byteOffset+pos,4).getUint32(0);
+    const end=pos+12+len;
+    const chunk=bytes.slice(pos,end);
+    const type=new TextDecoder().decode(bytes.slice(pos+4,pos+8));
+    parts.push(chunk);
+    pos=end;
+    if(type==='IHDR' && !inserted){
+      const d=new Uint8Array(9);
+      const dv=new DataView(d.buffer);
+      dv.setUint32(0,ppm);
+      dv.setUint32(4,ppm);
+      d[8]=1;
+      parts.push(makeChunk('pHYs',d));
+      inserted=true;
+    }
+  }
+  return new Blob(parts,{type:'image/png'});
+}
+
+async function downloadPNG(){
+  if(totalCount()>40) return;
+  const DPI=300;
+  const cmToPx=cm=>Math.round(cm/2.54*DPI);
+  const W=cmToPx(17);
+  const totalRows=totalCount();
+
+  // 診別與醫師姓名字級：9 格時 12pt，40 格時 8.5pt，中間線性縮放
+  const maxCellPt=12;
+  const minCellPt=8.5;
+  const tCell=Math.min(1,Math.max(0,(totalRows-9)/(40-9)));
+  const cellPt=Math.max(minCellPt,Math.min(maxCellPt,maxCellPt-(maxCellPt-minCellPt)*tCell));
+  const cellFontPx=cellPt/72*DPI;
+  // 9 格 = 9cm；之後依格數增加高度，最高不超過 16cm
+  const outputHeightCm=Math.min(16, Math.max(9, 9 + Math.max(0,totalRows-9)*0.2258));
+  const H=cmToPx(outputHeightCm);
+  const canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  // Canvas 外圍維持透明；只繪製表格本身。
+  ctx.clearRect(0,0,W,H);
+
+  const pad=cmToPx(.42);
+  const bottomPad=cmToPx(.38);
+  const tableX=pad, tableY=pad;
+  const tableW=W-pad*2, tableH=H-tableY-bottomPad;
+
+  const headerH=cmToPx(.55);
+  const sessionW=cmToPx(2.15);
+  const clinicW=cmToPx(1.65);
+  const dayW=(tableW-sessionW-clinicW)/7;
+  const colX=[tableX,tableX+sessionW,tableX+sessionW+clinicW];
+  for(let i=1;i<7;i++) colX.push(tableX+sessionW+clinicW+dayW*i);
+
+  const total=totalCount();
+  const rowH=(tableH-headerH)/total;
+  const line=2;
+
+  const widths=[sessionW,clinicW,...Array(7).fill(dayW)];
+  const headers=['門診時間','診別','星期一','星期二','星期三','星期四','星期五','星期六','星期日'];
+  let x=tableX;
+  headers.forEach((h,i)=>{
+    ctx.fillStyle=COLORS.header;
+    ctx.fillRect(x,tableY,widths[i],headerH);
+
+    ctx.save();
+    ctx.fillStyle='#fff';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.font=`700 ${10/72*DPI}px "Source Han Sans TC","思源黑體","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+    ctx.fillText(h,x+widths[i]/2,tableY+headerH/2);
+    ctx.restore();
+
+    x+=widths[i];
+  });
+
+  // 表頭外框維持黑色；各欄之間使用白色分隔線，對齊參考圖。
+  ctx.save();
+  ctx.lineWidth=line;
+  ctx.strokeStyle='#000';
+  ctx.strokeRect(tableX,tableY,tableW,headerH);
+
+  let dividerX=tableX;
+  ctx.strokeStyle='#fff';
+  for(let i=0;i<widths.length-1;i++){
+    dividerX+=widths[i];
+    ctx.beginPath();
+    ctx.moveTo(dividerX,tableY);
+    ctx.lineTo(dividerX,tableY+headerH);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 星期日全天休診：合併早診、午診、晚診為一整格，只顯示一次「休診」
+  const sundayX=tableX+sessionW+clinicW+dayW*6;
+  const sundayY=tableY+headerH;
+  const sundayH=tableH-headerH;
+  ctx.fillStyle='#fff';
+  ctx.fillRect(sundayX,sundayY,dayW,sundayH);
+  ctx.strokeStyle='#000';
+  ctx.lineWidth=line;
+  ctx.strokeRect(sundayX,sundayY,dayW,sundayH);
+  drawVerticalText(ctx,'休診',sundayX,sundayY,dayW,sundayH,10/72*DPI,'400',1.35);
+
+  let y=tableY+headerH;
+  sessions.forEach((s,si)=>{
+    const rows=data[s.key];
+
+    // 午診、晚診開始前：畫 2 倍粗的時段分隔線
+    if(si>0){
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(tableX,y);
+      ctx.lineTo(tableX+sessionW+clinicW+dayW*6,y);
+      ctx.strokeStyle='#000';
+      ctx.lineWidth=line*2;
+      ctx.stroke();
+      ctx.restore();
+    }
+    const groupH=rowH*rows.length;
+    const fill=COLORS[s.key];
+
+    ctx.fillStyle=fill;
+    ctx.fillRect(tableX,y,sessionW,groupH);
+    ctx.strokeStyle='#000';ctx.lineWidth=line;ctx.strokeRect(tableX,y,sessionW,groupH);
+    drawSessionBlock(ctx,s.name,s.start,s.end,tableX,y,sessionW,groupH,10/72*DPI);
+
+    if(s.key==='evening'){
+      const satX=tableX+sessionW+clinicW+dayW*5;
+      ctx.fillStyle='#fff';ctx.fillRect(satX,y,dayW,groupH);ctx.strokeRect(satX,y,dayW,groupH);
+      drawVerticalText(ctx,'休診',satX,y,dayW,groupH,10/72*DPI,'400',1.35);
+    }
+
+    rows.forEach((row,ri)=>{
+      const ry=y+ri*rowH;
+      ctx.fillStyle=fill;
+      ctx.fillRect(tableX+sessionW,ry,clinicW,rowH);
+      ctx.strokeStyle='#000';ctx.lineWidth=line;ctx.strokeRect(tableX+sessionW,ry,clinicW,rowH);
+      drawCenteredText(ctx,row.clinic,tableX+sessionW,ry,clinicW,rowH,getCellFontPt()/72*DPI,'400',1.05);
+
+      for(let day=0;day<6;day++){
+        if(s.key==='evening' && day===5) continue;
+        const dx=tableX+sessionW+clinicW+dayW*day;
+        ctx.fillStyle=fill;ctx.fillRect(dx,ry,dayW,rowH);
+        ctx.strokeStyle='#000';ctx.lineWidth=line;ctx.strokeRect(dx,ry,dayW,rowH);
+        drawCenteredText(ctx,row.names[day],dx,ry,dayW,rowH,getDoctorFontPt()/72*DPI,'400',1.05);
+      }
+    });
+    y+=groupH;
+  });
+
+  const raw=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  const png=await addDpiMetadata(raw,300);
+  const url=URL.createObjectURL(png);
+  const a=document.createElement('a');
+  a.href=url;a.download=`門診醫師表_17x${outputHeightCm.toFixed(1)}cm_300dpi.png`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+document.getElementById('downloadBtn').addEventListener('click',downloadPNG);
+
+render();
+requestAnimationFrame(()=>{
+  updateCellFontSize();
+  fitTableRows();
+  fitPreview();
+});
+</script>
+
+
+
+</body>
+</html>

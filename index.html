@@ -165,6 +165,50 @@
   }
   .doc-import-status.error{color:#b42318}
   .doc-import-status.ok{color:#16794b}
+
+  .add-clinic-box{
+    background:#fff;
+    border:1px solid #ddd;
+    border-radius:10px;
+    padding:12px;
+  }
+  .add-clinic-grid{
+    display:grid;
+    grid-template-columns:1fr 88px;
+    gap:8px;
+    align-items:end;
+  }
+  .add-clinic-field label{
+    display:block;
+    font-size:12px;
+    color:#555;
+    margin-bottom:5px;
+  }
+  .add-clinic-field select,
+  .add-clinic-field input{
+    width:100%;
+    height:36px;
+    border:1px solid #bbb;
+    border-radius:8px;
+    padding:6px 8px;
+    background:#fff;
+    font:inherit;
+  }
+  .add-clinic-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:10px;
+  }
+  .add-clinic-status{
+    min-height:18px;
+    margin-top:8px;
+    font-size:12px;
+    line-height:1.5;
+    color:#555;
+  }
+  .add-clinic-status.error{color:#b42318}
+  .add-clinic-status.ok{color:#16794b}
   button{
     appearance:none;
     border:0;
@@ -428,7 +472,7 @@
 <div class="app">
   <aside class="panel">
     <h1>門診醫師表格製作</h1>
-    <div class="sub">診別只可修改前方數字，「診」固定不可變更；醫師姓名可直接輸入，最多 4 個字。門診時間與休診規則固定不可變更。</div>
+    <div class="sub">診別只可修改前方數字，「診」固定不可變更；可隨時新增診別，新列會自動產生醫師姓名欄位並依診別排序。醫師姓名可直接輸入，最多 4 個字。門診時間與休診規則固定不可變更。</div>
 
     <div class="group">
       <h2>診別格數</h2>
@@ -478,6 +522,32 @@
           <button type="button" class="secondary" id="importDocumentBtn">讀取並匯入診別／醫師姓名</button>
         </div>
         <div id="documentImportStatus" class="doc-import-status">支援 Word（.docx／.docm）與 PDF。Word 會讀取表格內容；PDF 優先讀文字層，掃描型 PDF 會改用 OCR。</div>
+      </div>
+    </div>
+
+
+    <div class="group">
+      <h2>新增診別</h2>
+      <div class="add-clinic-box">
+        <div class="add-clinic-grid">
+          <div class="add-clinic-field">
+            <label for="addClinicSession">時段</label>
+            <select id="addClinicSession">
+              <option value="morning">早診</option>
+              <option value="afternoon">午診</option>
+              <option value="evening">晚診</option>
+            </select>
+          </div>
+          <div class="add-clinic-field">
+            <label for="addClinicNumber">診別數字</label>
+            <input id="addClinicNumber" type="text" inputmode="numeric" maxlength="2" placeholder="例：5">
+          </div>
+        </div>
+        <div class="add-clinic-actions">
+          <button type="button" class="secondary" id="addClinicBtn">＋ 新增診別</button>
+          <button type="button" class="secondary" id="sortClinicsBtn">依診別排序</button>
+        </div>
+        <div id="addClinicStatus" class="add-clinic-status">新增後會自動產生完整的星期一～六醫師姓名欄位，並依診別數字排序。</div>
       </div>
     </div>
 
@@ -661,6 +731,7 @@ function applyDocumentImportedRows(rows,sourceLabel='文件'){
     afternoon:grouped.afternoon,
     evening:grouped.evening
   };
+  sortAllClinicRows();
 
   counts.morning.value=grouped.morning.length;
   counts.afternoon.value=grouped.afternoon.length;
@@ -1354,6 +1425,7 @@ function applyExcelImportedRows(rows){
     afternoon:grouped.afternoon,
     evening:grouped.evening
   };
+  sortAllClinicRows();
 
   counts.morning.value=grouped.morning.length;
   counts.afternoon.value=grouped.afternoon.length;
@@ -1893,6 +1965,7 @@ function applyImportedRows(rows){
     afternoon:grouped.afternoon,
     evening:grouped.evening
   };
+  sortAllClinicRows();
 
   counts.morning.value=grouped.morning.length;
   counts.afternoon.value=grouped.afternoon.length;
@@ -1987,6 +2060,102 @@ async function importScheduleFromImage(){
 }
 
 document.getElementById('importImageBtn').addEventListener('click',importScheduleFromImage);
+
+
+
+function setAddClinicStatus(text,type=''){
+  const el=document.getElementById('addClinicStatus');
+  el.textContent=text;
+  el.className='add-clinic-status' + (type ? ` ${type}` : '');
+}
+
+function clinicNumberOf(row){
+  const m=String(row?.clinic || '').match(/\d{1,2}/);
+  return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
+}
+
+function sortClinicRows(sessionKey){
+  data[sessionKey].sort((a,b)=>{
+    const na=clinicNumberOf(a);
+    const nb=clinicNumberOf(b);
+    if(na!==nb) return na-nb;
+    return String(a.clinic || '').localeCompare(String(b.clinic || ''),'zh-Hant');
+  });
+}
+
+function sortAllClinicRows(){
+  sortClinicRows('morning');
+  sortClinicRows('afternoon');
+  sortClinicRows('evening');
+}
+
+function nextClinicNumber(sessionKey){
+  const nums=data[sessionKey].map(clinicNumberOf).filter(Number.isFinite);
+  if(!nums.length) return 1;
+  const used=new Set(nums);
+  for(let n=1;n<=99;n++){
+    if(!used.has(n)) return n;
+  }
+  return Math.min(99,Math.max(...nums)+1);
+}
+
+function addClinicRow(){
+  const sessionKey=document.getElementById('addClinicSession').value;
+  const numberInput=document.getElementById('addClinicNumber');
+
+  if(totalCount()>=42){
+    setAddClinicStatus('目前已達三時段合計 42 格上限，無法再新增。','error');
+    return;
+  }
+
+  const raw=numberInput.value.replace(/\D+/g,'').slice(0,2);
+  const clinicNumber=raw ? Number(raw) : nextClinicNumber(sessionKey);
+
+  if(!Number.isFinite(clinicNumber) || clinicNumber<1 || clinicNumber>99){
+    setAddClinicStatus('診別請輸入 1～99 的數字。','error');
+    return;
+  }
+
+  if(data[sessionKey].some(row=>clinicNumberOf(row)===clinicNumber)){
+    const sessionName=sessions.find(s=>s.key===sessionKey)?.name || '';
+    setAddClinicStatus(`${sessionName} 已經有 ${clinicNumber}診，請輸入其他診別。`,'error');
+    return;
+  }
+
+  data[sessionKey].push({
+    clinic:`${clinicNumber}診`,
+    names:Array(7).fill('')
+  });
+
+  sortClinicRows(sessionKey);
+  counts[sessionKey].value=data[sessionKey].length;
+  numberInput.value='';
+
+  render();
+
+  const sessionName=sessions.find(s=>s.key===sessionKey)?.name || '';
+  setAddClinicStatus(`已新增 ${sessionName} ${clinicNumber}診，並依診別順序重新排列。`,'ok');
+}
+
+document.getElementById('addClinicBtn').addEventListener('click',addClinicRow);
+
+document.getElementById('sortClinicsBtn').addEventListener('click',()=>{
+  sortAllClinicRows();
+  render();
+  setAddClinicStatus('已依早診／午診／晚診各自的診別數字，由小到大排序。','ok');
+});
+
+document.getElementById('addClinicNumber').addEventListener('input',e=>{
+  const digits=e.currentTarget.value.replace(/\D+/g,'').slice(0,2);
+  if(e.currentTarget.value!==digits) e.currentTarget.value=digits;
+});
+
+document.getElementById('addClinicNumber').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    addClinicRow();
+  }
+});
 
 
 function getDoctorFontPt(){
@@ -2105,6 +2274,11 @@ function render(){
         const digits=e.currentTarget.value.replace(/\D+/g,'').slice(0,2);
         if(e.currentTarget.value!==digits) e.currentTarget.value=digits;
         row.clinic=`${digits}診`;
+      });
+
+      clinicInput.addEventListener('blur',()=>{
+        sortClinicRows(s.key);
+        render();
       });
 
       clinicInput.addEventListener('keydown',e=>{
